@@ -1,0 +1,20 @@
+{
+  "session_id": "aade26d5-3b75-4360-88cb-334e54eb0157",
+  "exercise_id": "ex_006",
+  "exercise_slug": "glute_bridge",
+  "exercise_name": "Glute Bridge",
+  "reps": 12,
+  "hold_sec": 3,
+  "difficulty": "beginner",
+  "sets": 1,
+  "status": "configured",
+  "created_at": "2026-06-12T08:52:54.755175",
+  "started_at": null,
+  "completed_at": null,
+  "reps_completed": 0,
+  "sets_completed": 0,
+  "form_score": null,
+  "compensation_count": 0,
+  "user_id": "2596a26f-6222-47d2-a92c-31592991b87b",
+  "notes": ""
+}

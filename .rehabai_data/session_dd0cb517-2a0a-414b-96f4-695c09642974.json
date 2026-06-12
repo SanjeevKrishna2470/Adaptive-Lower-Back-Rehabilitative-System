@@ -1,0 +1,20 @@
+{
+  "session_id": "dd0cb517-2a0a-414b-96f4-695c09642974",
+  "exercise_id": "ex_005",
+  "exercise_slug": "dead_bug",
+  "exercise_name": "Dead Bug",
+  "reps": 8,
+  "hold_sec": 3,
+  "difficulty": "intermediate",
+  "sets": 1,
+  "status": "configured",
+  "created_at": "2026-06-12T08:46:54.816145",
+  "started_at": null,
+  "completed_at": null,
+  "reps_completed": 0,
+  "sets_completed": 0,
+  "form_score": null,
+  "compensation_count": 0,
+  "user_id": "a0f4512a-cc46-4687-ac1e-830a555eca44",
+  "notes": ""
+}
