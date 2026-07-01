@@ -1,0 +1,121 @@
+* { box-sizing: border-box; }
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #0f1115;
+  color: #e8e8ec;
+  margin: 0;
+}
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #232733;
+}
+
+header h1 {
+  font-size: 1.25rem;
+  margin: 0 1rem 0 0;
+}
+
+header select,
+header input {
+  background: #1a1d26;
+  color: #e8e8ec;
+  border: 1px solid #2c303c;
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+
+header button {
+  background: #ff9f43;
+  color: #1a1208;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+header button:hover {
+  background: #ffb066;
+}
+
+/* Two-column layout: video left, telemetry right */
+main {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  align-items: flex-start;
+}
+
+.video-side {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.video-box h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.9rem;
+  color: #9aa0ad;
+}
+
+.video-box video,
+.video-box img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #000;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.telemetry-side {
+  flex: 1;
+  min-width: 280px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.stat {
+  background: #1a1d26;
+  border: 1px solid #2c303c;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.stat.wide {
+  grid-column: 1 / -1;
+}
+
+.stat span {
+  display: block;
+  font-size: 0.75rem;
+  color: #9aa0ad;
+  margin-bottom: 0.25rem;
+}
+
+.stat strong {
+  font-size: 1.1rem;
+  word-break: break-word;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  main {
+    flex-direction: column;
+  }
+  .telemetry-side {
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+}

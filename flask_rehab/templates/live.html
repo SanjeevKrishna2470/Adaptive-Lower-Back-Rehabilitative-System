@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Live Rehabilitation Session</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='live.css') }}" />
+</head>
+<body>
+
+  <header>
+    <h1>Live Rehabilitation Session</h1>
+    <select id="exercise">
+      <option value="Pelvic Tilt">Pelvic Tilt</option>
+      <option value="Cat Cow">Cat Cow</option>
+      <option value="Bird Dog">Bird Dog</option>
+      <option value="Knee to Chest">Knee to Chest</option>
+    </select>
+    <input id="hold-dur" type="number" step="0.5" value="3.0" title="Hold duration (s)" />
+    <input id="rom-min" type="number" step="1" value="160" title="Target angle (°)" />
+    <button id="start-btn">Start Camera</button>
+    <button id="finish-btn">Finish Session</button>
+  </header>
+
+  <main>
+    <!-- LEFT: raw webcam + processed skeleton overlay -->
+    <section class="video-side">
+      <div class="video-box">
+        <h3>Webcam</h3>
+        <video id="webcam" autoplay playsinline muted></video>
+      </div>
+      <div class="video-box">
+        <h3>Skeleton Overlay</h3>
+        <img id="processed" alt="Processed feed" />
+      </div>
+    </section>
+
+    <!-- RIGHT: live telemetry -->
+    <section class="telemetry-side">
+      <div class="stat"><span>Reps</span><strong id="t-reps">0</strong></div>
+      <div class="stat"><span>Correct Reps</span><strong id="t-correct">0</strong></div>
+      <div class="stat"><span>Phase</span><strong id="t-phase">-</strong></div>
+      <div class="stat"><span>Range of Motion</span><strong id="t-rom">0°</strong></div>
+      <div class="stat"><span>Movement Speed</span><strong id="t-speed">0°/s</strong></div>
+      <div class="stat"><span>Hold Timer</span><strong id="t-hold">0.0s</strong></div>
+      <div class="stat"><span>Fatigue Score</span><strong id="t-fatigue">0%</strong></div>
+      <div class="stat"><span>Warm-up Status</span><strong id="t-warmup">-</strong></div>
+      <div class="stat wide"><span>Compensation Warnings</span><strong id="t-comp">-</strong></div>
+      <div class="stat wide"><span>Form Flaws</span><strong id="t-flaws">-</strong></div>
+      <div class="stat wide" id="fatigue-warning-box"><span>Fatigue Warnings</span><strong id="t-fatigue-warn">-</strong></div>
+    </section>
+  </main>
+
+  <canvas id="capture-canvas" class="hidden"></canvas>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="{{ url_for('static', filename='live.js') }}"></script>
+</body>
+</html>
