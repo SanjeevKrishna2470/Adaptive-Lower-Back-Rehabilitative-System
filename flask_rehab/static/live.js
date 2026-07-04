@@ -7,15 +7,35 @@ const processedImg = document.getElementById("processed");
 const canvas = document.getElementById("capture-canvas");
 const ctx = canvas.getContext("2d");
 
-const exerciseSelect = document.getElementById("exercise");
-const holdDurInput = document.getElementById("hold-dur");
-const romMinInput = document.getElementById("rom-min");
+// --- ALL parameters come from the injected SESSION object.
+//     No UI elements exist to change these.
+//     No hidden input fields are used.
+const EXERCISE_NAME = window.SESSION.exercise;
+const HOLD_DUR = Number(window.SESSION.holdDur);
+const ROM_MIN = Number(window.SESSION.romMin);
+const MODE = window.SESSION.mode;
 
 const startBtn = document.getElementById("start-btn");
-const finishBtn = document.getElementById("finish-btn");
+const calibrateBtn = document.getElementById("calibrate-btn"); // only rendered in calibration mode
+const finishBtn = document.getElementById("finish-btn");       // only rendered in rehab mode
 
-const FRAMES_PER_SECOND = 8; // how often we send a frame to the server
+const instructionText = document.getElementById("instruction-text");
+
+const FRAMES_PER_SECOND = 8;
 let streaming = false;
+
+// --- Instruction bar helper ---
+function updateInstruction(msg) {
+  if (msg) instructionText.textContent = msg;
+}
+
+// --- Hand the browser back to Streamlit after a short delay ---
+function redirectTo(url) {
+  if (!url) return;
+  setTimeout(() => {
+    window.location.href = url;
+  }, 1500);
+}
 
 // --- Step 1: Start the webcam ---
 async function startCamera() {
@@ -41,23 +61,42 @@ function sendFrame() {
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   const imageData = canvas.toDataURL("image/jpeg", 0.7);
 
+  // Emit exactly as required – all values are locked.
   socket.emit("frame", {
     image: imageData,
-    exercise_name: exerciseSelect.value,
-    hold_dur: parseFloat(holdDurInput.value),
-    rom_min: parseFloat(romMinInput.value),
+    exercise_name: EXERCISE_NAME,
+    hold_dur: HOLD_DUR,
+    rom_min: ROM_MIN,
+    mode: MODE,
   });
 }
 
-// --- Step 3: Receive the processed frame + telemetry back ---
+// --- Initial connection / calibration events ---
+socket.on("ready", (data) => {
+  updateInstruction(data.instruction);
+});
+
+socket.on("calibration_started", (data) => {
+  updateInstruction(data.instruction);
+});
+
+// --- Step 3: Receive the processed frame + telemetry ---
 socket.on("processed_frame", (payload) => {
   if (payload.image) {
     processedImg.src = payload.image;
   }
   updateTelemetry(payload.telemetry || {});
+  updateInstruction(payload.telemetry && payload.telemetry.instruction);
 });
 
-// --- Step 4: Update the right-hand panel with the latest telemetry ---
+// --- Calibration complete: stop streaming and redirect ---
+socket.on("calibration_complete", (data) => {
+  streaming = false;
+  updateInstruction(data.instruction);
+  redirectTo(data.redirect_url);
+});
+
+// --- Step 4: Update the right-hand telemetry panel ---
 function updateTelemetry(t) {
   document.getElementById("t-reps").textContent = t.rep_count ?? 0;
   document.getElementById("t-correct").textContent = t.correct_rep_count ?? 0;
@@ -81,20 +120,34 @@ function updateTelemetry(t) {
     t.fatigue_warnings && t.fatigue_warnings.length ? t.fatigue_warnings.join(" | ") : "None";
 }
 
-// --- Step 5: Tell the server the session is over and show the summary ---
-finishBtn.addEventListener("click", () => {
-  socket.emit("finalize_session", { exercise_name: exerciseSelect.value });
-});
+// --- Step 5: Finish session (rehab mode only) ---
+if (finishBtn) {
+  finishBtn.addEventListener("click", () => {
+    // Emit exactly as required – locked exercise name.
+    socket.emit("finalize_session", {
+      exercise_name: EXERCISE_NAME
+    });
+  });
+}
 
 socket.on("session_summary", (summary) => {
-  if (!summary || Object.keys(summary).length === 0) {
-    alert("No repetitions were tracked during this session.");
-  } else {
-    alert("Session complete!\n\n" + JSON.stringify(summary, null, 2));
-  }
+  streaming = false;
+  updateInstruction(summary && summary.instruction);
+  redirectTo(summary && summary.redirect_url);
 });
 
 // --- Wire up the start button ---
 startBtn.addEventListener("click", () => {
   if (!streaming) startCamera();
 });
+
+// --- Wire up the calibrate button (calibration mode only) ---
+if (calibrateBtn) {
+  calibrateBtn.addEventListener("click", () => {
+    if (!streaming) {
+      alert("Start the camera first, then calibrate.");
+      return;
+    }
+    socket.emit("start_calibration");
+  });
+}

@@ -9,16 +9,32 @@
 
   <header>
     <h1>Live Rehabilitation Session</h1>
-    <select id="exercise">
-      <option value="Pelvic Tilt">Pelvic Tilt</option>
-      <option value="Cat Cow">Cat Cow</option>
-      <option value="Bird Dog">Bird Dog</option>
-      <option value="Knee to Chest">Knee to Chest</option>
-    </select>
-    <input id="hold-dur" type="number" step="0.5" value="3.0" title="Hold duration (s)" />
-    <input id="rom-min" type="number" step="1" value="160" title="Target angle (°)" />
+
+    <!-- Read-only info cards: values are locked, set by Streamlit via Flask -->
+    <div class="info-card">
+      <span>Exercise</span>
+      <strong>{{ exercise }}</strong>
+    </div>
+    <div class="info-card">
+      <span>Hold Duration</span>
+      <strong>{{ hold_dur }} s</strong>
+    </div>
+    <div class="info-card">
+      <span>Target ROM</span>
+      <strong>{{ rom_min }}°</strong>
+    </div>
+    <div class="info-card">
+      <span>Mode</span>
+      <strong>{% if mode == "calibration" %}Calibration{% else %}Rehabilitation{% endif %}</strong>
+    </div>
+
     <button id="start-btn">Start Camera</button>
+    {% if mode == "calibration" %}
+    <button id="calibrate-btn">Calibrate</button>
+    {% endif %}
+    {% if mode == "rehab" %}
     <button id="finish-btn">Finish Session</button>
+    {% endif %}
   </header>
 
   <main>
@@ -50,7 +66,21 @@
     </section>
   </main>
 
+  <!-- Bottom instruction / dialogue box -->
+  <div id="instruction-bar">
+    <span id="instruction-text">Get ready to begin your session…</span>
+  </div>
+
   <canvas id="capture-canvas" class="hidden"></canvas>
+
+  <script>
+    window.SESSION = {
+        exercise: "{{ exercise }}",
+        holdDur: {{ hold_dur }},
+        romMin: {{ rom_min }},
+        mode: "{{ mode }}"
+    };
+  </script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
   <script src="{{ url_for('static', filename='live.js') }}"></script>
