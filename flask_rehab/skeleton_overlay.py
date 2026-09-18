@@ -12,12 +12,17 @@ No Streamlit imports. No Flask imports. No UI code.
 
 import cv2
 import mediapipe as mp
+
 try:
-    import mediapipe.python.solutions.drawing_utils as mp_drawing
-    import mediapipe.python.solutions.pose as mp_pose
-except Exception:
-    mp_drawing = getattr(mp, "solutions", mp).drawing_utils
-    mp_pose = getattr(mp, "solutions", mp).pose
+    mp_drawing = mp.solutions.drawing_utils
+    mp_pose = mp.solutions.pose
+except AttributeError:
+    try:
+        from mediapipe.python.solutions import drawing_utils as mp_drawing
+        from mediapipe.python.solutions import pose as mp_pose
+    except ImportError:
+        from mediapipe.solutions import drawing_utils as mp_drawing
+        from mediapipe.solutions import pose as mp_pose
 import math
 import time
 import json
