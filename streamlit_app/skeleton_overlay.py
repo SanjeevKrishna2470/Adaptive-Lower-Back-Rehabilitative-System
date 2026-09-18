@@ -12,10 +12,6 @@ No Streamlit imports. No Flask imports. No UI code.
 
 import cv2
 import mediapipe as mp
-from mediapipe import solutions
-
-mp_drawing = solutions.drawing_utils
-mp_pose = solutions.pose
 import math
 import time
 import json
@@ -72,17 +68,32 @@ class AdvancedRehabProcessor:
     # Lateral trunk lean threshold in degrees (3D coronal-plane angle).
     TORSO_LATERAL_LEAN_DEG = 12.0
 
-    def __init__(self, storage_path=DEFAULT_STORAGE_PATH):
-        self.lock = threading.Lock()
-        self.storage_path = storage_path
+    def _init_mediapipe(self):
+        if hasattr(self, "pose") and self.pose is not None:
+            return
+        try:
+            from mediapipe import solutions
+            self.mp_drawing = solutions.drawing_utils
+            self.mp_pose = solutions.pose
+        except Exception:
+            try:
+                self.mp_drawing = mp.solutions.drawing_utils
+                self.mp_pose = mp.solutions.pose
+            except Exception:
+                import mediapipe.python.solutions.drawing_utils as mp_drawing
+                import mediapipe.python.solutions.pose as mp_pose
+                self.mp_drawing = mp_drawing
+                self.mp_pose = mp_pose
 
-        # Initialize MediaPipe Solutions once to prevent memory leaks across threads
-        self.mp_drawing = mp_drawing
-        self.mp_pose = mp_pose
         self.pose = self.mp_pose.Pose(
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5
         )
+
+    def __init__(self, storage_path=DEFAULT_STORAGE_PATH):
+        self.lock = threading.Lock()
+        self.storage_path = storage_path
+        self._init_mediapipe()
 
         # --- State Configuration & Telemetry Stores ---
         # normal_hunch_index / baseline_max_rom / baseline_avg_speed are the
