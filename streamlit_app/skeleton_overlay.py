@@ -12,6 +12,12 @@ No Streamlit imports. No Flask imports. No UI code.
 
 import cv2
 import mediapipe as mp
+try:
+    import mediapipe.python.solutions.drawing_utils as mp_drawing
+    import mediapipe.python.solutions.pose as mp_pose
+except Exception:
+    mp_drawing = getattr(mp, "solutions", mp).drawing_utils
+    mp_pose = getattr(mp, "solutions", mp).pose
 import math
 import time
 import json
@@ -73,8 +79,8 @@ class AdvancedRehabProcessor:
         self.storage_path = storage_path
 
         # Initialize MediaPipe Solutions once to prevent memory leaks across threads
-        self.mp_drawing = mp.solutions.drawing_utils
-        self.mp_pose = mp.solutions.pose
+        self.mp_drawing = mp_drawing
+        self.mp_pose = mp_pose
         self.pose = self.mp_pose.Pose(
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5

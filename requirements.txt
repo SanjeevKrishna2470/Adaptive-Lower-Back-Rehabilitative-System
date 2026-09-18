@@ -1,9 +1,9 @@
-﻿streamlit
+streamlit
 Flask
 Flask-SocketIO
 eventlet
 opencv-python-headless
-mediapipe
+mediapipe==0.10.14
 numpy
 pandas
 gunicorn
