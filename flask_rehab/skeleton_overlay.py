@@ -71,20 +71,26 @@ class AdvancedRehabProcessor:
     def _init_mediapipe(self):
         if hasattr(self, "pose") and self.pose is not None:
             return
+        mp_obj = None
+        solutions_obj = None
         try:
-            from mediapipe import solutions
-            self.mp_drawing = solutions.drawing_utils
-            self.mp_pose = solutions.pose
-        except Exception:
+            import mediapipe as mp_obj
             try:
-                self.mp_drawing = mp.solutions.drawing_utils
-                self.mp_pose = mp.solutions.pose
-            except Exception:
-                import mediapipe.python.solutions.drawing_utils as mp_drawing
-                import mediapipe.python.solutions.pose as mp_pose
-                self.mp_drawing = mp_drawing
-                self.mp_pose = mp_pose
+                from mediapipe import solutions as solutions_obj
+            except ImportError:
+                solutions_obj = getattr(mp_obj, "solutions", None)
+        except Exception:
+            mp_obj = None
 
+        if solutions_obj is None or not hasattr(solutions_obj, "pose"):
+            raise RuntimeError(
+                "MediaPipe Pose Solutions API is not available on this Python runtime version. "
+                "MediaPipe requires Python 3.10 or 3.11. "
+                "Ensure your deployment uses Python 3.10 (set PYTHON_VERSION=3.10.13 or runtime.txt)."
+            )
+
+        self.mp_drawing = solutions_obj.drawing_utils
+        self.mp_pose = solutions_obj.pose
         self.pose = self.mp_pose.Pose(
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5

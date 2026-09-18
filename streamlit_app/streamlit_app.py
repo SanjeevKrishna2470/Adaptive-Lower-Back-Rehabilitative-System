@@ -1,8 +1,14 @@
+import sys
+import os
+
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+if _this_dir not in sys.path:
+    sys.path.insert(0, _this_dir)
+
 import streamlit as st
 import time
 import urllib.parse
 import tempfile
-import os
 import cv2
 import pandas as pd
 from skeleton_overlay import AdvancedRehabProcessor

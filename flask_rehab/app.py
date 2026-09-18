@@ -47,6 +47,13 @@ overlay's border blue (matching calibrated form) or red (deviating from
 it) and to decide whether the rep in progress will count.
 """
 
+import sys
+import os
+
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+if _this_dir not in sys.path:
+    sys.path.insert(0, _this_dir)
+
 import base64
 import threading
 import time
