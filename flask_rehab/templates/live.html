@@ -2,76 +2,239 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Live Rehabilitation Session</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Movement Analysis — Adaptive Rehab Studio</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='live.css') }}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
 </head>
 <body>
 
-  <header>
-    <h1>Live Rehabilitation Session</h1>
-
-    <!-- Read-only info cards: values are locked, set by Streamlit via Flask -->
-    <div class="info-card">
-      <span>Exercise</span>
-      <strong>{{ exercise }}</strong>
-    </div>
-    <div class="info-card">
-      <span>Hold Duration</span>
-      <strong>{{ hold_dur }} s</strong>
-    </div>
-    <div class="info-card">
-      <span>Target ROM</span>
-      <strong>{{ rom_min }}°</strong>
-    </div>
-    <div class="info-card">
-      <span>Mode</span>
-      <strong>{% if mode == "calibration" %}Calibration{% else %}Rehabilitation{% endif %}</strong>
+  <!-- Top Navigation & Session Parameter Bar -->
+  <header class="app-header" role="banner">
+    <div class="header-brand">
+      <div class="brand-badge">
+        <span class="pulse-dot"></span>
+        <span class="brand-name">Adaptive Rehab Studio</span>
+      </div>
+      <span class="session-mode-badge mode-{{ mode }}">
+        {% if mode == "calibration" %}Postural Calibration{% else %}Active Rehabilitation{% endif %}
+      </span>
     </div>
 
-    <button id="start-btn">Start Camera</button>
-    {% if mode == "calibration" %}
-    <button id="calibrate-btn">Calibrate</button>
-    {% endif %}
-    {% if mode == "rehab" %}
-    <button id="finish-btn">Finish Session</button>
-    {% endif %}
+    <!-- Read-only Prescription Parameters (Set securely by Streamlit session ticket) -->
+    <div class="prescription-strip" aria-label="Session Prescription Parameters">
+      <div class="info-card">
+        <span class="info-label">Exercise Protocol</span>
+        <strong class="info-value">{{ exercise }}</strong>
+      </div>
+      <div class="info-card">
+        <span class="info-label">Target Hold</span>
+        <strong class="info-value">{{ hold_dur }}s</strong>
+      </div>
+      <div class="info-card">
+        <span class="info-label">Target ROM</span>
+        <strong class="info-value">{{ rom_min }}°</strong>
+      </div>
+    </div>
+
+    <!-- Context-Sensitive Session Controls -->
+    <div class="header-actions" role="toolbar" aria-label="Session Controls">
+      <button id="start-btn" class="btn btn-primary" aria-label="Start Camera Stream">
+        <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8" fill="currentColor"></polygon></svg>
+        <span>Start Camera</span>
+      </button>
+
+      {% if mode == "calibration" %}
+      <button id="calibrate-btn" class="btn btn-accent" aria-label="Begin Postural Calibration">
+        <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"></path><circle cx="12" cy="12" r="4"></circle></svg>
+        <span>Calibrate</span>
+      </button>
+      <button id="finish-calibration-btn" class="btn btn-success hidden" aria-label="Save and Finish Calibration">
+        <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"></path></svg>
+        <span>Finish Calibration</span>
+      </button>
+      {% endif %}
+
+      {% if mode == "rehab" %}
+      <button id="finish-btn" class="btn btn-finish" aria-label="Complete Rehabilitation Session">
+        <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"></rect></svg>
+        <span>Finish Session</span>
+      </button>
+      {% endif %}
+
+      <button id="restart-btn" class="btn btn-secondary hidden" aria-label="Restart Current Session">
+        <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+        <span>Restart</span>
+      </button>
+    </div>
   </header>
 
-  <main>
-    <!-- LEFT: raw webcam + processed skeleton overlay -->
-    <section class="video-side">
-      <div class="video-box">
-        <h3>Webcam</h3>
-        <video id="webcam" autoplay playsinline muted></video>
+  <main class="session-workspace" role="main">
+    <!-- Visual Movement Analysis Stage -->
+    <section class="stage-container" aria-label="Visual Movement Analysis">
+      <!-- Focal Movement Analysis Feed (Primary) -->
+      <div class="feed-card primary-feed-card">
+        <div class="feed-header">
+          <div class="feed-title-group">
+            <span class="live-indicator" id="live-indicator" aria-hidden="true"></span>
+            <h2 class="feed-title">Kinematic Movement Analysis</h2>
+          </div>
+          <div class="feed-status-cluster">
+            <span id="form-status-badge" class="status-badge badge-neutral" role="status" aria-live="polite">
+              Ready
+            </span>
+          </div>
+        </div>
+
+        <div class="video-viewport primary-viewport">
+          <div id="processed-placeholder" class="feed-placeholder">
+            <div class="placeholder-content">
+              <svg class="placeholder-icon" viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="7" r="4"></circle>
+                <path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              <p class="placeholder-title">Awaiting Live Camera Feed</p>
+              <p class="placeholder-sub">Click <strong>Start Camera</strong> above and step back so your full body is visible.</p>
+            </div>
+          </div>
+          <img id="processed" alt="Analyzed skeleton pose overlay" class="feed-media" />
+        </div>
       </div>
-      <div class="video-box">
-        <h3>Skeleton Overlay</h3>
-        <img id="processed" alt="Processed feed" />
+
+      <!-- Secondary Camera Reference View -->
+      <div class="feed-card secondary-feed-card">
+        <div class="feed-header">
+          <h3 class="feed-title secondary-title">Webcam Reference</h3>
+          <span id="camera-status-pill" class="camera-pill">Standby</span>
+        </div>
+        <div class="video-viewport secondary-viewport">
+          <video id="webcam" autoplay playsinline muted></video>
+        </div>
       </div>
     </section>
 
-    <!-- RIGHT: live telemetry -->
-    <section class="telemetry-side">
-      <div class="stat"><span>Reps</span><strong id="t-reps">0</strong></div>
-      <div class="stat"><span>Correct Reps</span><strong id="t-correct">0</strong></div>
-      <div class="stat"><span>Phase</span><strong id="t-phase">-</strong></div>
-      <div class="stat"><span>Range of Motion</span><strong id="t-rom">0°</strong></div>
-      <div class="stat"><span>Movement Speed</span><strong id="t-speed">0°/s</strong></div>
-      <div class="stat"><span>Hold Timer</span><strong id="t-hold">0.0s</strong></div>
-      <div class="stat"><span>Fatigue Score</span><strong id="t-fatigue">0%</strong></div>
-      <div class="stat"><span>Warm-up Status</span><strong id="t-warmup">-</strong></div>
-      <div class="stat wide"><span>Compensation Warnings</span><strong id="t-comp">-</strong></div>
-      <div class="stat wide"><span>Form Flaws</span><strong id="t-flaws">-</strong></div>
-      <div class="stat wide" id="fatigue-warning-box"><span>Fatigue Warnings</span><strong id="t-fatigue-warn">-</strong></div>
-    </section>
+    <!-- Tiered Telemetry Deck -->
+    <aside class="telemetry-panel" aria-label="Real-time Kinematic Telemetry">
+      <!-- Tier 1: Hero Metrics (Distance-legible reps & phase) -->
+      <div class="telemetry-section hero-section">
+        <h3 class="section-label">Primary Performance</h3>
+        
+        <div class="hero-stats-grid">
+          <div class="hero-card rep-card">
+            <span class="metric-label">Repetitions</span>
+            <div class="hero-number-wrap">
+              <strong id="t-reps" class="hero-value">0</strong>
+              <div class="rep-sub-counts">
+                <span class="sub-count correct-count" title="Correct Reps">
+                  <span class="sub-dot dot-good"></span>
+                  <strong id="t-correct">0</strong> valid
+                </span>
+                <span class="sub-count flagged-count" title="Flagged Reps">
+                  <span class="sub-dot dot-bad"></span>
+                  <strong id="t-flagged">0</strong> flawed
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-card phase-card">
+            <span class="metric-label">Current Phase</span>
+            <div class="phase-display">
+              <strong id="t-phase" class="phase-value">-</strong>
+            </div>
+            <div class="hold-timer-container">
+              <span class="timer-label">Hold Timer</span>
+              <strong id="t-hold" class="timer-value">0.0s</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tier 2: Biomechanical Kinematics -->
+      <div class="telemetry-section kinematic-section">
+        <h3 class="section-label">Kinematic Metrics</h3>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <span class="stat-label">Range of Motion</span>
+            <div class="stat-row">
+              <strong id="t-rom" class="stat-value">0°</strong>
+              <span class="target-ref">Target: {{ rom_min }}°</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <span class="stat-label">Movement Speed</span>
+            <div class="stat-row">
+              <strong id="t-speed" class="stat-value">0°/s</strong>
+              <span class="speed-unit">angular vel</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <span class="stat-label">Fatigue Index</span>
+            <div class="stat-row">
+              <strong id="t-fatigue" class="stat-value">0%</strong>
+              <div class="fatigue-indicator-bar" aria-hidden="true">
+                <div id="fatigue-progress" class="fatigue-progress-fill" style="width: 0%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <span class="stat-label">Warm-Up Status</span>
+            <strong id="t-warmup" class="stat-value stat-small">-</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tier 3: Clinical Feedback & Diagnostic Alerts -->
+      <div class="telemetry-section diagnostics-section">
+        <h3 class="section-label">Real-Time Diagnostics</h3>
+
+        <div class="diagnostic-card">
+          <div class="diag-header">
+            <svg class="diag-icon icon-comp" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <span class="diag-title">Compensation Warnings</span>
+          </div>
+          <strong id="t-comp" class="diag-content">None detected</strong>
+        </div>
+
+        <div class="diagnostic-card">
+          <div class="diag-header">
+            <svg class="diag-icon icon-flaw" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <span class="diag-title">Form Flaws</span>
+          </div>
+          <strong id="t-flaws" class="diag-content">None detected</strong>
+        </div>
+
+        <div class="diagnostic-card critical-alert" id="fatigue-warning-box">
+          <div class="diag-header">
+            <svg class="diag-icon icon-warn" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <span class="diag-title">Fatigue Advisory</span>
+          </div>
+          <strong id="t-fatigue-warn" class="diag-content">None</strong>
+        </div>
+      </div>
+    </aside>
   </main>
 
-  <!-- Bottom instruction / dialogue box -->
-  <div id="instruction-bar">
-    <span id="instruction-text">Get ready to begin your session…</span>
-  </div>
+  <!-- Live Clinical Coaching Deck -->
+  <footer id="instruction-bar" class="coaching-deck" role="region" aria-label="Live Movement Coaching Guidance">
+    <div class="coaching-inner">
+      <div class="coach-badge" aria-hidden="true">
+        <svg class="coach-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        <span>Clinical Coach</span>
+      </div>
+      <p id="instruction-text" class="coaching-message" role="status" aria-live="polite">
+        Get ready to begin your session…
+      </p>
+    </div>
+  </footer>
 
-  <canvas id="capture-canvas" class="hidden"></canvas>
+  <canvas id="capture-canvas" class="hidden" aria-hidden="true"></canvas>
 
   <script>
     window.SESSION = {

@@ -46,16 +46,33 @@ import threading
 import time
 import uuid
 
-EXERCISE_HIERARCHY = ["Glute Bridge", "Cat Cow", "Bird Dog", "Standing Hip Hinge"]
+EXERCISE_HIERARCHY = [
+    "Glute Bridge",
+    "Cat Cow",
+    "Bird Dog",
+    "Standing Hip Hinge",
+    # Deliberately the simplest exercise in the list: stand normally and
+    # hold. It reuses the exact same shoulder-hip-knee angle metric as
+    # every other exercise (no engine changes needed), but its target ROM
+    # is set near full extension (~170°, see streamlit_app.py's
+    # adaptive_rom_targets default) — which is essentially where a person
+    # already is just standing upright. That means:
+    #   * Calibration/position-validation is fast, since the "aligned"
+    #     window is centered on a stance the patient is naturally already
+    #     in, rather than a pose they have to contort into.
+    #   * Visibility is as good as it gets: standing, full body in frame,
+    #     nothing on the floor and nothing bent out of camera view.
+    "Standing Posture Hold",
+]
 
 # Base URL Streamlit is served from. Flask uses this to build the redirect
 # links it sends the browser back to after calibration finishes and after a
 # rehab session is finalized.
-STREAMLIT_BASE_URL = "http://localhost:8501/"
+STREAMLIT_BASE_URL = os.environ.get("STREAMLIT_BASE_URL", "http://localhost:8501/")
 
 # Base URL Flask's live session is served from. Streamlit uses this to build
 # the links it hands to the user (with ?session=<ticket> attached).
-FLASK_LIVE_SESSION_URL = "http://localhost:5000/"
+FLASK_LIVE_SESSION_URL = os.environ.get("FLASK_LIVE_SESSION_URL", "http://localhost:5000/")
 
 # Directory both processes read/write shared state from (session tickets,
 # and — via DEFAULT_REHAB_STORAGE_PATH, used by skeleton_overlay.py —

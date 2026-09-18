@@ -1,0 +1,43 @@
+{
+    "calibration": {
+        "normal_hunch_index": 1.5966303943197426,
+        "baseline_max_rom": 175.37631241544156,
+        "baseline_avg_speed": 25.0
+    },
+    "history": [
+        {
+            "timestamp": 1783237904.8556998,
+            "exercise_name": "Glute Bridge",
+            "total_reps": 16,
+            "correct_reps": 0,
+            "accuracy_percentage": 0.0,
+            "average_rom": 178.4,
+            "average_hold_time": 10.3,
+            "average_movement_speed": 70.3,
+            "fatigue_score": 100.0,
+            "symmetry_score": 0.0,
+            "most_common_flaw": "Insufficent Isometric Hold Duration",
+            "most_common_compensation": "Lateral Asymmetry",
+            "clinical_recommendation": "High asymmetric structural drift detected. Focus on keeping your left and right sides level.",
+            "instruction": "Session complete! You hit 0.0% accuracy over 16 rep(s). Redirecting you to your full report...",
+            "redirect_url": "http://localhost:8501/?session_complete=1&exercise=Glute+Bridge"
+        },
+        {
+            "timestamp": 1783238223.538153,
+            "exercise_name": "Standing Hip Hinge",
+            "total_reps": 15,
+            "correct_reps": 0,
+            "accuracy_percentage": 0.0,
+            "average_rom": 172.9,
+            "average_hold_time": 12.4,
+            "average_movement_speed": 36.7,
+            "fatigue_score": 100.0,
+            "symmetry_score": 0.0,
+            "most_common_flaw": "Insufficent Isometric Hold Duration",
+            "most_common_compensation": "Torso Coronal Lean",
+            "clinical_recommendation": "High asymmetric structural drift detected. Focus on keeping your left and right sides level.",
+            "instruction": "Session complete! You hit 0.0% accuracy over 15 rep(s). Redirecting you to your full report...",
+            "redirect_url": "http://localhost:8501/?session_complete=1&exercise=Standing+Hip+Hinge"
+        }
+    ]
+}
