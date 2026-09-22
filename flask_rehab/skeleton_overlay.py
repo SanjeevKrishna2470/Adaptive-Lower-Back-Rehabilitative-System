@@ -68,33 +68,84 @@ class AdvancedRehabProcessor:
     # Lateral trunk lean threshold in degrees (3D coronal-plane angle).
     TORSO_LATERAL_LEAN_DEG = 12.0
 
+    # MediaPipe pose connections (33 landmarks)
+    POSE_CONNECTIONS = (
+        (0, 1), (1, 2), (2, 3), (3, 7), (0, 4), (4, 5), (5, 6), (6, 8), (9, 10),
+        (11, 12), (11, 23), (12, 24), (23, 24),
+        (11, 13), (13, 15), (15, 17), (15, 19), (15, 21), (17, 19),
+        (12, 14), (14, 16), (16, 18), (16, 20), (16, 22), (18, 20),
+        (23, 25), (25, 27), (27, 29), (27, 31), (29, 31),
+        (24, 26), (26, 28), (28, 30), (28, 32), (30, 32)
+    )
+
+    # Landmark indices matching MediaPipe Pose topology
+    LM_LEFT_EAR = 7
+    LM_LEFT_SHOULDER = 11
+    LM_RIGHT_SHOULDER = 12
+    LM_LEFT_HIP = 23
+    LM_RIGHT_HIP = 24
+    LM_LEFT_KNEE = 25
+    LM_RIGHT_KNEE = 26
+    LM_LEFT_ANKLE = 27
+    LM_RIGHT_ANKLE = 28
+
     def _init_mediapipe(self):
         if hasattr(self, "pose") and self.pose is not None:
             return
-        mp_obj = None
-        solutions_obj = None
+
+        self._use_tasks_api = False
+
+        # Strategy 1: Try legacy MediaPipe Solutions API (Python <= 3.12)
         try:
             import mediapipe as mp_obj
+            solutions_obj = None
             try:
                 from mediapipe import solutions as solutions_obj
             except ImportError:
                 solutions_obj = getattr(mp_obj, "solutions", None)
+
+            if solutions_obj is not None and hasattr(solutions_obj, "pose"):
+                self.mp_drawing = getattr(solutions_obj, "drawing_utils", None)
+                self.mp_pose = solutions_obj.pose
+                self.pose = self.mp_pose.Pose(
+                    min_detection_confidence=0.5,
+                    min_tracking_confidence=0.5
+                )
+                self._use_tasks_api = False
+                return
         except Exception:
-            mp_obj = None
+            pass
 
-        if solutions_obj is None or not hasattr(solutions_obj, "pose"):
-            raise RuntimeError(
-                "MediaPipe Pose Solutions API is not available on this Python runtime version. "
-                "MediaPipe requires Python 3.10 or 3.11. "
-                "Ensure your deployment uses Python 3.10 (set PYTHON_VERSION=3.10.13 or runtime.txt)."
+        # Strategy 2: Try modern MediaPipe Tasks API (Python 3.13 / 3.14 compatible)
+        try:
+            import mediapipe as mp_obj
+            from mediapipe.tasks import python as mp_tasks
+            from mediapipe.tasks.python import vision
+
+            model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pose_landmarker_lite.task")
+            if not os.path.exists(model_path):
+                model_url = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
+                import urllib.request
+                urllib.request.urlretrieve(model_url, model_path)
+
+            base_options = mp_tasks.BaseOptions(model_asset_path=model_path)
+            options = vision.PoseLandmarkerOptions(
+                base_options=base_options,
+                running_mode=vision.RunningMode.IMAGE,
+                min_pose_detection_confidence=0.5,
+                min_pose_presence_confidence=0.5,
+                min_tracking_confidence=0.5
             )
-
-        self.mp_drawing = solutions_obj.drawing_utils
-        self.mp_pose = solutions_obj.pose
-        self.pose = self.mp_pose.Pose(
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
-        )
+            self.pose = vision.PoseLandmarker.create_from_options(options)
+            self.mp_tasks_vision = vision
+            self.mp_obj = mp_obj
+            self._use_tasks_api = True
+            return
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to initialize MediaPipe Pose estimation engine: {e}. "
+                "Ensure mediapipe is installed properly."
+            ) from e
 
     def __init__(self, storage_path=DEFAULT_STORAGE_PATH):
         self.lock = threading.Lock()
@@ -484,6 +535,9 @@ class AdvancedRehabProcessor:
     # ------------------------------------------------------------------
     def _run_pose_estimation(self, frame):
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        if getattr(self, "_use_tasks_api", False):
+            mp_image = self.mp_obj.Image(image_format=self.mp_obj.ImageFormat.SRGB, data=rgb)
+            return self.pose.detect(mp_image)
         return self.pose.process(rgb)
 
     def _base_telemetry(self):
@@ -507,68 +561,117 @@ class AdvancedRehabProcessor:
             "camera_orientation": self.camera_orientation,
         }
 
+    def _get_landmark_list(self, results):
+        if not results:
+            return None, None
+        pl = getattr(results, "pose_landmarks", None)
+        if pl is None:
+            return None, None
+        pwl = getattr(results, "pose_world_landmarks", None)
+
+        if isinstance(pl, list):
+            # Tasks API returns list of list of landmarks
+            if not pl:
+                return None, None
+            lm = pl[0]
+            wlm = pwl[0] if (pwl and isinstance(pwl, list) and len(pwl) > 0) else None
+        else:
+            # Legacy Solutions API returns NormalizedLandmarkList protobuf object
+            lm = getattr(pl, "landmark", None)
+            wlm = getattr(pwl, "landmark", None) if pwl else None
+
+        return lm, wlm
+
     def _draw_skeleton(self, frame, results, form_ok=True):
         line_color = (255, 0, 0) if form_ok else (0, 0, 255)
-        self.mp_drawing.draw_landmarks(
-            frame, results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS,
-            landmark_drawing_spec=self.mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=2),
-            connection_drawing_spec=self.mp_drawing.DrawingSpec(color=line_color, thickness=2)
-        )
+        circle_color = (0, 255, 0)
+
+        lm, _ = self._get_landmark_list(results)
+        if not lm:
+            return
+
+        h, w, _ = frame.shape
+        coords = {}
+        for idx in range(len(lm)):
+            item = lm[idx]
+            vis = getattr(item, 'visibility', 1.0)
+            if vis is None:
+                vis = 1.0
+            if vis > 0.3:
+                coords[idx] = (int(item.x * w), int(item.y * h))
+
+        for start_idx, end_idx in self.POSE_CONNECTIONS:
+            if start_idx in coords and end_idx in coords:
+                cv2.line(frame, coords[start_idx], coords[end_idx], line_color, 2)
+
+        for pt in coords.values():
+            cv2.circle(frame, pt, 3, circle_color, -1)
 
     def _extract_landmarks(self, results, w, h):
-        lm = results.pose_landmarks.landmark
+        lm, wlm = self._get_landmark_list(results)
+        if not lm:
+            return {
+                "l_sh": (0, 0), "r_sh": (0, 0),
+                "l_hip": (0, 0), "r_hip": (0, 0),
+                "l_knee": (0, 0), "r_knee": (0, 0),
+                "l_ank": (0, 0), "r_ank": (0, 0),
+                "l_ear": (0, 0),
+                "visibility": {k: 0.0 for k in ["l_sh", "r_sh", "l_hip", "r_hip", "l_knee", "r_knee", "l_ank", "r_ank", "l_ear"]},
+                "world": None
+            }
 
-        def get_xy(point):
-            return (int(lm[point.value].x * w), int(lm[point.value].y * h))
+        def get_xy(idx):
+            item = lm[idx]
+            return (int(item.x * w), int(item.y * h))
 
-        def get_visibility(point):
-            landmark = lm[point.value]
-            vis = getattr(landmark, 'visibility', 0.0)
-            pres = getattr(landmark, 'presence', vis)
+        def get_visibility(idx):
+            item = lm[idx]
+            vis = getattr(item, 'visibility', 0.0)
+            pres = getattr(item, 'presence', vis)
+            if vis is None:
+                vis = 0.0
+            if pres is None:
+                pres = vis
             return min(vis, pres)
 
-        P = self.mp_pose.PoseLandmark
-
         landmarks = {
-            "l_sh": get_xy(P.LEFT_SHOULDER),
-            "r_sh": get_xy(P.RIGHT_SHOULDER),
-            "l_hip": get_xy(P.LEFT_HIP),
-            "r_hip": get_xy(P.RIGHT_HIP),
-            "l_knee": get_xy(P.LEFT_KNEE),
-            "r_knee": get_xy(P.RIGHT_KNEE),
-            "l_ank": get_xy(P.LEFT_ANKLE),
-            "r_ank": get_xy(P.RIGHT_ANKLE),
-            "l_ear": get_xy(P.LEFT_EAR),
+            "l_sh": get_xy(self.LM_LEFT_SHOULDER),
+            "r_sh": get_xy(self.LM_RIGHT_SHOULDER),
+            "l_hip": get_xy(self.LM_LEFT_HIP),
+            "r_hip": get_xy(self.LM_RIGHT_HIP),
+            "l_knee": get_xy(self.LM_LEFT_KNEE),
+            "r_knee": get_xy(self.LM_RIGHT_KNEE),
+            "l_ank": get_xy(self.LM_LEFT_ANKLE),
+            "r_ank": get_xy(self.LM_RIGHT_ANKLE),
+            "l_ear": get_xy(self.LM_LEFT_EAR),
             "visibility": {
-                "l_sh": get_visibility(P.LEFT_SHOULDER),
-                "r_sh": get_visibility(P.RIGHT_SHOULDER),
-                "l_hip": get_visibility(P.LEFT_HIP),
-                "r_hip": get_visibility(P.RIGHT_HIP),
-                "l_knee": get_visibility(P.LEFT_KNEE),
-                "r_knee": get_visibility(P.RIGHT_KNEE),
-                "l_ank": get_visibility(P.LEFT_ANKLE),
-                "r_ank": get_visibility(P.RIGHT_ANKLE),
-                "l_ear": get_visibility(P.LEFT_EAR),
+                "l_sh": get_visibility(self.LM_LEFT_SHOULDER),
+                "r_sh": get_visibility(self.LM_RIGHT_SHOULDER),
+                "l_hip": get_visibility(self.LM_LEFT_HIP),
+                "r_hip": get_visibility(self.LM_RIGHT_HIP),
+                "l_knee": get_visibility(self.LM_LEFT_KNEE),
+                "r_knee": get_visibility(self.LM_RIGHT_KNEE),
+                "l_ank": get_visibility(self.LM_LEFT_ANKLE),
+                "r_ank": get_visibility(self.LM_RIGHT_ANKLE),
+                "l_ear": get_visibility(self.LM_LEFT_EAR),
             },
         }
 
-        if results.pose_world_landmarks:
-            wlm = results.pose_world_landmarks.landmark
-
-            def get_xyz(point):
-                p = wlm[point.value]
-                return (p.x, p.y, p.z)
+        if wlm:
+            def get_xyz(idx):
+                item = wlm[idx]
+                return (item.x, item.y, item.z)
 
             landmarks["world"] = {
-                "l_sh": get_xyz(P.LEFT_SHOULDER),
-                "r_sh": get_xyz(P.RIGHT_SHOULDER),
-                "l_hip": get_xyz(P.LEFT_HIP),
-                "r_hip": get_xyz(P.RIGHT_HIP),
-                "l_knee": get_xyz(P.LEFT_KNEE),
-                "r_knee": get_xyz(P.RIGHT_KNEE),
-                "l_ank": get_xyz(P.LEFT_ANKLE),
-                "r_ank": get_xyz(P.RIGHT_ANKLE),
-                "l_ear": get_xyz(P.LEFT_EAR),
+                "l_sh": get_xyz(self.LM_LEFT_SHOULDER),
+                "r_sh": get_xyz(self.LM_RIGHT_SHOULDER),
+                "l_hip": get_xyz(self.LM_LEFT_HIP),
+                "r_hip": get_xyz(self.LM_RIGHT_HIP),
+                "l_knee": get_xyz(self.LM_LEFT_KNEE),
+                "r_knee": get_xyz(self.LM_RIGHT_KNEE),
+                "l_ank": get_xyz(self.LM_LEFT_ANKLE),
+                "r_ank": get_xyz(self.LM_RIGHT_ANKLE),
+                "l_ear": get_xyz(self.LM_LEFT_EAR),
             }
         else:
             landmarks["world"] = None
