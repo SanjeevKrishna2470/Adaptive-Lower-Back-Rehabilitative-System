@@ -10,6 +10,7 @@ import time
 import urllib.parse
 import tempfile
 import cv2
+import numpy as np
 import pandas as pd
 from skeleton_overlay import AdvancedRehabProcessor
 from shared_config import (
@@ -841,9 +842,61 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 if not is_calibrated:
-    st.caption("Note: Calibration is recommended first for precise form-flaw detection, but you can launch now to practice movement.")
+    st.caption("Note: Posture calibration is recommended first for maximum form-flaw precision, but you can launch live tracking anytime.")
 
-same_tab_link("Start Live Rehabilitation", rehab_url, variant="primary")
+rehab_tab_direct, rehab_tab_link = st.tabs(["Direct Browser Webcam", "External Live Link (Socket.IO)"])
+
+with rehab_tab_direct:
+    st.markdown("""
+    **In-Dashboard Live Kinematic Tracking:**
+    Use your device webcam directly inside this clinical dashboard to capture movement frames, view skeleton overlays, track reps, and monitor real-time fatigue metrics.
+    """)
+
+    col_cam_left, col_cam_right = st.columns([3, 2])
+
+    with col_cam_left:
+        camera_photo = st.camera_input("Capture / Stream Movement Frame", key="rehab_camera_input")
+        if camera_photo is not None:
+            bytes_data = camera_photo.getvalue()
+            file_bytes = np.frombuffer(bytes_data, np.uint8)
+            frame = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+            if frame is not None:
+                frame = cv2.flip(frame, 1)
+                proc = st.session_state.processor
+                proc.position_validated = True
+                processed_frame, telemetry = proc.process_single_frame(
+                    frame, selected_ex, current_adaptive_hold, current_adaptive_hold, current_adaptive_rom
+                )
+                st.image(cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB), caption="Live Kinematic Biofeedback & Skeleton Overlay", use_container_width=True)
+
+    with col_cam_right:
+        proc = st.session_state.processor
+        st.markdown("#### Real-Time Telemetry Deck")
+        t_col1, t_col2 = st.columns(2)
+        with t_col1:
+            st.metric("Total Reps", proc.rep_count)
+            st.metric("Phase", proc.phase)
+        with t_col2:
+            st.metric("Correct Reps", proc.correct_rep_count)
+            st.metric("Form", "GOOD" if proc.frame_form_ok else "DEVIATION", delta_color="normal" if proc.frame_form_ok else "inverse")
+
+        st.metric("Fatigue Index", f"{proc.fatigue_score:.1f}%")
+
+        if proc.current_rep_compensations:
+            st.warning(f"Active Flaws: {', '.join(proc.current_rep_compensations)}")
+
+        if st.button("Finish Session & Finalize Clinical Report", key="finalize_direct_session_btn", type="primary"):
+            summary = proc.finalize_session_data(selected_ex)
+            if summary:
+                st.session_state.last_summary = summary
+                st.success("Session finalized! Clinical report generated below.")
+                st.rerun()
+            else:
+                st.info("No repetitions logged in this session yet.")
+
+with rehab_tab_link:
+    st.markdown("Launch the dedicated high-framerate Socket.IO live stream interface:")
+    same_tab_link("Start External Socket.IO Session", rehab_url, variant="primary")
 
 st.markdown("---")
 
