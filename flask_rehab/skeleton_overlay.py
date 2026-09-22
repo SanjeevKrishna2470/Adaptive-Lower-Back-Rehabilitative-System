@@ -94,15 +94,19 @@ class AdvancedRehabProcessor:
             return
 
         self._use_tasks_api = False
+        self.mediapipe_failed = False
+        self.mediapipe_error_msg = ""
+        errors = []
 
         # Strategy 1: Try legacy MediaPipe Solutions API (Python <= 3.12)
         try:
             import mediapipe as mp_obj
-            solutions_obj = None
-            try:
-                from mediapipe import solutions as solutions_obj
-            except ImportError:
-                solutions_obj = getattr(mp_obj, "solutions", None)
+            solutions_obj = getattr(mp_obj, "solutions", None)
+            if solutions_obj is None:
+                try:
+                    from mediapipe import solutions as solutions_obj
+                except ImportError:
+                    pass
 
             if solutions_obj is not None and hasattr(solutions_obj, "pose"):
                 self.mp_drawing = getattr(solutions_obj, "drawing_utils", None)
@@ -113,8 +117,8 @@ class AdvancedRehabProcessor:
                 )
                 self._use_tasks_api = False
                 return
-        except Exception:
-            pass
+        except Exception as e:
+            errors.append(f"Legacy Solutions API failed: {e}")
 
         # Strategy 2: Try modern MediaPipe Tasks API (Python 3.13 / 3.14 compatible)
         try:
@@ -142,10 +146,13 @@ class AdvancedRehabProcessor:
             self._use_tasks_api = True
             return
         except Exception as e:
-            raise RuntimeError(
-                f"Failed to initialize MediaPipe Pose estimation engine: {e}. "
-                "Ensure mediapipe is installed properly."
-            ) from e
+            errors.append(f"Tasks API failed: {e}")
+
+        # Strategy 3: Graceful fallback if system missing C++ graphics dependencies (e.g. libGLESv2.so.2)
+        self.pose = None
+        self.mediapipe_failed = True
+        self.mediapipe_error_msg = " | ".join(errors)
+        print(f"[AdvancedRehabProcessor WARNING] MediaPipe initialization failed: {self.mediapipe_error_msg}")
 
     def __init__(self, storage_path=DEFAULT_STORAGE_PATH):
         self.lock = threading.Lock()
@@ -533,7 +540,13 @@ class AdvancedRehabProcessor:
     # ------------------------------------------------------------------
     # process_single_frame helpers (internal only)
     # ------------------------------------------------------------------
+    class _DummyResults:
+        pose_landmarks = None
+        pose_world_landmarks = None
+
     def _run_pose_estimation(self, frame):
+        if getattr(self, "mediapipe_failed", False) or self.pose is None:
+            return self._DummyResults()
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         if getattr(self, "_use_tasks_api", False):
             mp_image = self.mp_obj.Image(image_format=self.mp_obj.ImageFormat.SRGB, data=rgb)
